@@ -1,5 +1,5 @@
 # SentinelBruh
-#### Dirty PoC on how to abuse S1's VEH for Vectored Syscalls and Local Execution
+#### Dirty PoC on how to abuse S1's VEH for Vectored Syscalls and Local Execution (win10)
 
 
 The following PoC abuses 2 things:
