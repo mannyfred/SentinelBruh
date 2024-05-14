@@ -21,7 +21,7 @@ LdrpVectorHandlerList sits at a static offset from the base address of Ntdll (di
 
 When registering a VEH, RtlpAddVectoredExceptionHandler allocates and initializes a struct related to a VEH handler on the heap, adding a pointer to said struct into the VEH_LIST.
 
-Each VEH_HANDLER_ENTRY instance contains a bit of info, but they main thing we are after is the encoded pointer:
+Each VEH_HANDLER_ENTRY instance contains a bit of info, but the main thing we are after is the encoded pointer:
 
 | VEH_HANDLER_ENTRY                   |       
 | ----------------------------------- |
