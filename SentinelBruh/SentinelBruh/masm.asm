@@ -1,5 +1,7 @@
 .code
 
+; This stupid GetBase only works on Win10 I'm pretty sure
+
 GetBase proc 
 
 		xor rax, rax

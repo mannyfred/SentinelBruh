@@ -5,8 +5,6 @@
 #define H_NCS   ( 0xb80f7b50 )
 #define H_NMVOS ( 0xd6649bca )
 
-#define VEH_LIST_OFFSET_WIN10 0x1813F0
-
 #define SECTION_RWX (SECTION_MAP_READ | SECTION_MAP_WRITE | SECTION_MAP_EXECUTE)
 #define ROL(x, y) ((unsigned long long)(x) << (y) | (unsigned long long)(x) >> 64 - (y))
 
