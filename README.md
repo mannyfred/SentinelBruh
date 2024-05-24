@@ -3,7 +3,7 @@
 
 
 The following PoC abuses 2 things:
-- Static offset of LdrpVectorHandlerList from the base of Ntdll
+- Static offset of LdrpVectorHandlerList from the base of Ntdll (updated so it looks for the correct 'lea' instruction)
 - S1's goofy detection methods
 
 ### LdrpVectorHandlerList
