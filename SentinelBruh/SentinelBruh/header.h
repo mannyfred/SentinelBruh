@@ -4,9 +4,8 @@
 
 #define H_NCS   ( 0xb80f7b50 )
 #define H_NMVOS ( 0xd6649bca )
-
+#define H_NPVM  ( 0x50e92888 ) 
 #define SECTION_RWX (SECTION_MAP_READ | SECTION_MAP_WRITE | SECTION_MAP_EXECUTE)
-#define ROL(x, y) ((unsigned long long)(x) << (y) | (unsigned long long)(x) >> 64 - (y))
 
 typedef struct _PE_STUFF {
     PDWORD      pdwArrayOfAddresses;
@@ -26,32 +25,23 @@ typedef struct _NT_SYSCALL {
 typedef struct _NTAPI_FUNC {
     NT_SYSCALL  NtCreateSection;
     NT_SYSCALL  NtMapViewOfSection;
+    NT_SYSCALL  NtProtectVirtualMemory;
 }NTAPI_FUNC, * PNTAPI_FUNC;
 
-//-----------------MOST-OF-THESE-STRUCTS-ARE-WRONG------------------
-//---------------BUT-THEY-WORK-FOR-US-AT-THE-MOMENT-----------------
-
-typedef struct _VECTORED_HANDLER_ENTRY {
-    struct _VECTORED_HANDLER_ENTRY* next;
-    struct _VECTORED_HANDLER_ENTRY* previous;
-    ULONG                           refs;
-    PVECTORED_EXCEPTION_HANDLER     handler;
-} VECTORED_HANDLER_ENTRY, PVECTORED_HANDLER_ENTRY;
-
 typedef struct _VEH_HANDLER_ENTRY {
-    LIST_ENTRY Entry;
-    PVOID      VectoredHandler3;
-    PVOID      VectoredHandler2;
-    PVOID      VectoredHandler1;
-} VEH_HANDLER_ENTRY, PVEH_HANDLER_ENTRY;
+    LIST_ENTRY					Entry;
+    PVOID						SyncRefs;
+    PVOID						Idk;
+    PVOID						VectoredHandler;
+} VEH_HANDLER_ENTRY, * PVEH_HANDLER_ENTRY;
 
 typedef struct _VECTORED_HANDLER_LIST {
-    PVOID                   MutexException;
-    VECTORED_HANDLER_ENTRY* FirstExceptionHandler;
-    VECTORED_HANDLER_ENTRY* LastExceptionHandler;
-    PVOID                   MutexContinue;
-    VECTORED_HANDLER_ENTRY* FirstContinueHandler;
-    VECTORED_HANDLER_ENTRY* LastContinueHandler;
+    PVOID              MutexException;
+    VEH_HANDLER_ENTRY* FirstExceptionHandler;
+    VEH_HANDLER_ENTRY* LastExceptionHandler;
+    PVOID              MutexContinue;
+    VEH_HANDLER_ENTRY* FirstContinueHandler;
+    VEH_HANDLER_ENTRY* LastContinueHandler;
 } VECTORED_HANDLER_LIST, * PVECTORED_HANDLER_LIST;
 
 //------------------------------------------------------------------
@@ -77,4 +67,12 @@ typedef NTSTATUS(NTAPI* fnNtMapViewOfSection)(
     ULONG       		InheritDisposition,
     ULONG				AllocationType,
     ULONG				Win32Protect
+    );
+
+typedef NTSTATUS(NTAPI* fnNtProtectVirtualMemory)(
+    HANDLE              ProcessHandle,
+    PVOID*              BaseAddress,
+    PSIZE_T             RegionSize,
+    ULONG               NewProtect,
+    PULONG              OldProtect
     );

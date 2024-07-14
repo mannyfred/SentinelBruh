@@ -137,19 +137,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="header.h" />
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="masm.asm" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="SentinelBruh.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="A:\CS\payloads\calc.nuked" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
