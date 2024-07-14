@@ -5,7 +5,6 @@
 #pragma warning (disable:4133)
 #pragma warning (disable:4022)
 
-extern ULONG_PTR GetBase(ULONG_PTR* uSelf);
 extern void MoveSyscallAddress(PVOID pSyscallAddress);
 extern void Patch(PVOID addr);
 extern void Oops();
