@@ -1,4 +1,7 @@
 # SentinelBruh
+
+- This is an outdated meme repo, please for the love of god don't use code from here
+
 #### Dirty PoC on how to abuse S1's VEH for Vectored Syscalls and Local Execution
 
 [Fun with Exception Handlers](https://mannyfreddy.gitbook.io/ya-boy-manny)
